@@ -1,0 +1,117 @@
+groups:
+  - name: canary-deployment-alerts
+    rules:
+      # 에러율 기반 알람
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(nginx_http_requests_total{status=~"5.."}[2m]) / 
+            rate(nginx_http_requests_total[2m])
+          ) * 100 > 2
+        for: 30s
+        labels:
+          severity: critical
+          service: canary-deployment
+        annotations:
+          summary: "High error rate detected"
+          description: "Error rate is {{ $value }}% which is above the 2% threshold"
+
+      # 응답시간 기반 알람
+      - alert: HighResponseTime
+        expr: |
+          histogram_quantile(0.95, 
+            rate(nginx_http_request_duration_seconds_bucket[2m])
+          ) > 1.5
+        for: 1m
+        labels:
+          severity: warning
+          service: canary-deployment
+        annotations:
+          summary: "High response time detected"
+          description: "95th percentile response time is {{ $value }}s which is above 1.5s threshold"
+
+      # 리팩토링 버전 특화 알람
+      - alert: RefactoredVersionHighErrorRate
+        expr: |
+          (
+            rate(spring_http_server_requests_seconds_count{version="refactored",status=~"5.."}[2m]) / 
+            rate(spring_http_server_requests_seconds_count{version="refactored"}[2m])
+          ) * 100 > 2
+        for: 30s
+        labels:
+          severity: critical
+          service: canary-deployment
+          version: refactored
+        annotations:
+          summary: "Refactored version high error rate"
+          description: "Refactored version error rate is {{ $value }}% - immediate rollback required"
+
+      # 애플리케이션 다운 알람
+      - alert: ApplicationDown
+        expr: up == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Application instance is down"
+          description: "{{ $labels.instance }} has been down for more than 1 minute"
+
+      # 메모리 사용량 알람
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            jvm_memory_used_bytes{area="heap"} / 
+            jvm_memory_max_bytes{area="heap"}
+          ) * 100 > 85
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage"
+          description: "Memory usage is {{ $value }}% on {{ $labels.instance }}"
+
+      # CPU 사용량 알람
+      - alert: HighCPUUsage
+        expr: |
+          rate(process_cpu_seconds_total[2m]) * 100 > 80
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage"
+          description: "CPU usage is {{ $value }}% on {{ $labels.instance }}"
+
+  - name: canary-deployment-rules
+    rules:
+      # 전체 에러율 계산
+      - record: canary:error_rate_5m
+        expr: |
+          (
+            rate(nginx_http_requests_total{status=~"5.."}[5m]) / 
+            rate(nginx_http_requests_total[5m])
+          ) * 100
+
+      # 버전별 에러율 계산
+      - record: canary:error_rate_by_version_5m
+        expr: |
+          (
+            rate(spring_http_server_requests_seconds_count{status=~"5.."}[5m]) / 
+            rate(spring_http_server_requests_seconds_count[5m])
+          ) * 100
+
+      # 평균 응답시간 계산
+      - record: canary:avg_response_time_5m
+        expr: |
+          rate(nginx_http_request_duration_seconds_sum[5m]) / 
+          rate(nginx_http_request_duration_seconds_count[5m])
+
+      # 초당 요청 수 계산
+      - record: canary:requests_per_second_5m
+        expr: rate(nginx_http_requests_total[5m])
+
+      # 버전별 트래픽 분산 비율
+      - record: canary:traffic_split_ratio
+        expr: |
+          rate(spring_http_server_requests_seconds_count[1m]) / 
+          on() group_left() 
+          sum(rate(spring_http_server_requests_seconds_count[1m]))

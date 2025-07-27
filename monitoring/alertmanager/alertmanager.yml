@@ -1,0 +1,51 @@
+global:
+  smtp_smarthost: 'localhost:587'
+  smtp_from: 'alertmanager@localhost'
+
+route:
+  group_by: ['alertname', 'service']
+  group_wait: 10s
+  group_interval: 10s
+  repeat_interval: 1h
+  receiver: 'webhook-controller'
+  routes:
+    - match:
+        severity: critical
+        service: canary-deployment
+      receiver: 'webhook-rollback'
+      group_wait: 5s
+      group_interval: 5s
+      repeat_interval: 30m
+
+    - match:
+        severity: warning
+      receiver: 'webhook-controller'
+      group_wait: 30s
+
+receivers:
+  # 즉시 롤백을 위한 웹훅
+  - name: 'webhook-rollback'
+    webhook_configs:
+      - url: 'http://controller:8080/api/webhook/rollback'
+        send_resolved: true
+        http_config:
+          basic_auth:
+            username: 'alertmanager'
+            password: 'webhook-secret'
+
+  # 일반 알림을 위한 웹훅
+  - name: 'webhook-controller'
+    webhook_configs:
+      - url: 'http://controller:8080/api/webhook/alert'
+        send_resolved: true
+        http_config:
+          basic_auth:
+            username: 'alertmanager'
+            password: 'webhook-secret'
+
+inhibit_rules:
+  - source_match:
+      severity: 'critical'
+    target_match:
+      severity: 'warning'
+    equal: ['alertname', 'service']

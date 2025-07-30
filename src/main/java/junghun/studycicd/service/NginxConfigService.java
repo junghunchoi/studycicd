@@ -63,29 +63,4 @@ public class NginxConfigService {
         }
     }
 
-    public boolean checkNginxHealth() {
-        try {
-            String[] command = {
-                "docker", "exec", nginxContainerName, 
-                "nginx", "-t"
-            };
-            
-            ProcessBuilder processBuilder = new ProcessBuilder(command);
-            processBuilder.redirectErrorStream(true);
-            
-            Process process = processBuilder.start();
-            boolean finished = process.waitFor(10, TimeUnit.SECONDS);
-            
-            if (!finished) {
-                process.destroyForcibly();
-                return false;
-            }
-            
-            return process.exitValue() == 0;
-            
-        } catch (IOException | InterruptedException e) {
-            logger.error("Failed to check NGINX health", e);
-            return false;
-        }
-    }
 }

@@ -1,51 +1,97 @@
 global:
   smtp_smarthost: 'localhost:587'
-  smtp_from: 'alertmanager@localhost'
+  smtp_from: 'alertmanager@studycicd.local'
 
+# 실무에서 사용하는 라우팅 전략 (우선순위 기반)
 route:
   group_by: ['alertname', 'service']
   group_wait: 10s
-  group_interval: 10s
-  repeat_interval: 1h
-  receiver: 'webhook-controller'
+  group_interval: 30s
+  repeat_interval: 12h
+  receiver: 'default-webhook'
+  
   routes:
-    - match:
-        severity: critical
-        service: canary-deployment
-      receiver: 'webhook-rollback'
-      group_wait: 5s
-      group_interval: 5s
-      repeat_interval: 30m
-
-    - match:
-        severity: warning
-      receiver: 'webhook-controller'
-      group_wait: 30s
+  # 자동 롤백 트리거 (최고 우선순위)
+  - match:
+      action: auto-rollback
+    receiver: 'auto-rollback-webhook'
+    group_wait: 0s  # 즉시 실행
+    group_interval: 5s
+    repeat_interval: 1h
+    continue: false  # 다른 라우트 전파 차단
+    
+  # 카나리 배포 일반 크리티컬 알람
+  - match:
+      severity: critical
+      service: canary-deployment
+    receiver: 'canary-critical'
+    group_wait: 5s
+    group_interval: 1m
+    repeat_interval: 30m
+    
+  # 일반 경고
+  - match:
+      severity: warning
+    receiver: 'general-alerts'
+    group_wait: 2m
+    group_interval: 5m
+    repeat_interval: 6h
 
 receivers:
-  # 즉시 롤백을 위한 웹훅
-  - name: 'webhook-rollback'
-    webhook_configs:
-      - url: 'http://controller:8080/api/webhook/rollback'
-        send_resolved: true
-        http_config:
-          basic_auth:
-            username: 'alertmanager'
-            password: 'webhook-secret'
+# 자동 롤백 전용 웹훅 (실무 핵심)
+- name: 'auto-rollback-webhook'
+  webhook_configs:
+  - url: 'http://nginx-lb/webhook/auto-rollback'
+    send_resolved: false
+    http_config:
+      basic_auth:
+        username: 'rollback-system'
+        password: 'auto-rollback-secret-key-2024'
+    title: 'AUTOMATIC ROLLBACK TRIGGERED'
+    text: |
+      🚨 자동 롤백 실행됨
+      알람: {{ .GroupLabels.alertname }}
+      서비스: {{ .GroupLabels.service }}
+      사유: {{ range .Alerts }}{{ .Annotations.rollback_reason }}{{ end }}
+      시간: {{ .CommonAnnotations.timestamp }}
 
-  # 일반 알림을 위한 웹훅
-  - name: 'webhook-controller'
-    webhook_configs:
-      - url: 'http://controller:8080/api/webhook/alert'
-        send_resolved: true
-        http_config:
-          basic_auth:
-            username: 'alertmanager'
-            password: 'webhook-secret'
+# 카나리 크리티컬 알람 (팀 통보용)
+- name: 'canary-critical'
+  webhook_configs:
+  - url: 'http://nginx-lb/webhook/critical'
+    send_resolved: true
+  # Slack 연동 (실제 환경에서 활용)
+  slack_configs:
+  - api_url: 'https://hooks.slack.com/services/YOUR/SLACK/WEBHOOK'
+    channel: '#deployment-alerts'
+    username: 'AlertManager'
+    color: 'danger'
+    title: '🚨 카나리 배포 크리티컬 알람'
+    text: |
+      {{ range .Alerts }}
+      *{{ .Annotations.summary }}*
+      {{ .Annotations.description }}
+      서비스: {{ .Labels.service }}
+      시작시간: {{ .StartsAt.Format "15:04:05" }}
+      {{ end }}
 
+# 일반 알람
+- name: 'general-alerts'
+  webhook_configs:
+  - url: 'http://nginx-lb/webhook/general'
+    send_resolved: true
+
+# 기본 웹훅
+- name: 'default-webhook'
+  webhook_configs:
+  - url: 'http://nginx-lb/webhook/default'
+    send_resolved: true
+
+# 실무에서 중요한 억제 규칙
 inhibit_rules:
-  - source_match:
-      severity: 'critical'
-    target_match:
-      severity: 'warning'
-    equal: ['alertname', 'service']
+# 자동 롤백이 트리거되면 다른 모든 알람 억제
+- source_match:
+    action: 'auto-rollback'
+  target_match_re:
+    alertname: '.+'
+  equal: ['service']

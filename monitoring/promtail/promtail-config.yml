@@ -1,0 +1,147 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  # NGINX Access Logs
+  - job_name: nginx-access
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          service: nginx
+          log_type: access
+          __path__: /var/log/nginx/access.log
+
+  # NGINX Canary Detailed Logs
+  - job_name: nginx-canary
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          service: nginx
+          log_type: canary
+          __path__: /var/log/nginx/canary.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2})\|(?P<component>\w+)\|(?P<request_id>[^|]*)\|(?P<remote_addr>[^|]*)\|"(?P<request>[^"]*)"\|(?P<status>\d+)\|(?P<bytes_sent>\d+)\|(?P<request_time>[^|]*)\|(?P<upstream_addr>[^|]*)\|(?P<upstream_response_time>[^|]*)\|(?P<upstream_connect_time>[^|]*)\|"(?P<user_agent>[^"]*)"\|"(?P<referer>[^"]*)"\|(?P<cache_status>.*)$'
+      - labels:
+          request_id:
+          component:
+          upstream_addr:
+          status:
+          request_time:
+          upstream_response_time:
+
+  # NGINX Routing Logs
+  - job_name: nginx-routing
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          service: nginx
+          log_type: routing
+          __path__: /var/log/nginx/routing.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}[+-]\d{2}:\d{2})\|(?P<component>\w+)\|(?P<request_id>[^|]*)\|(?P<remote_addr>[^|]*)\|"(?P<request>[^"]*)"\|upstream=(?P<upstream_addr>[^|]*)\|status=(?P<status>\d+)\|response_time=(?P<response_time>[^|]*)\|request_time=(?P<request_time>.*)$'
+      - labels:
+          request_id:
+          component:
+          upstream_addr:
+          status:
+          response_time:
+          request_time:
+
+  # NGINX Error Logs
+  - job_name: nginx-error
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: nginx
+          service: nginx
+          log_type: error
+          __path__: /var/log/nginx/error.log
+
+  # Legacy Application Logs
+  - job_name: legacy-app
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: spring-boot
+          service: legacy-app
+          version: legacy
+          __path__: /var/log/app/legacy-application.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\|(?P<version>\w+)\|(?P<thread>[^|]*)\|(?P<logger>[^|]*)\|(?P<request_id>[^|]*)\|(?P<upstream>[^|]*)\|(?P<message>.*)$'
+      - labels:
+          version:
+          request_id:
+          upstream:
+          thread:
+          logger:
+
+  # Refactored Application Logs
+  - job_name: refactored-app
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: spring-boot
+          service: refactored-app
+          version: refactored
+          __path__: /var/log/app/refactored-application.log
+    pipeline_stages:
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3})\|(?P<version>\w+)\|(?P<thread>[^|]*)\|(?P<logger>[^|]*)\|(?P<request_id>[^|]*)\|(?P<upstream>[^|]*)\|(?P<message>.*)$'
+      - labels:
+          version:
+          request_id:
+          upstream:
+          thread:
+          logger:
+
+  # Tomcat Access Logs
+  - job_name: tomcat-access
+    static_configs:
+      - targets:
+          - localhost
+        labels:
+          job: spring-boot
+          service: tomcat
+          log_type: access
+          __path__: /var/log/app/access_log.*
+    pipeline_stages:
+      - regex:
+          expression: '^\[(?P<timestamp>[^\]]+)\]\|(?P<remote_addr>[^|]*)\|(?P<request>[^|]*)\|(?P<status>\d+)\|(?P<bytes_sent>[^|]*)\|(?P<duration>[^|]*)\|(?P<request_id>[^|]*)\|(?P<canary_weight>.*)$'
+      - labels:
+          request_id:
+          status:
+          canary_weight:
+          duration:
+
+  # Docker Container Logs
+  - job_name: docker-containers
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+    relabel_configs:
+      - source_labels: ['__meta_docker_container_name']
+        regex: '/(.*)'
+        target_label: 'container_name'
+      - source_labels: ['__meta_docker_container_log_stream']
+        target_label: 'logstream'
+      - source_labels: ['__meta_docker_container_label_com_docker_compose_service']
+        target_label: 'compose_service'

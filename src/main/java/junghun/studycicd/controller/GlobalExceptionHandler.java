@@ -18,16 +18,23 @@ import java.util.stream.Collectors;
 public class GlobalExceptionHandler {
 
     private final Counter errorCounter;
+    private final Counter totalRequestCounter;
 
     public GlobalExceptionHandler(MeterRegistry meterRegistry) {
         this.errorCounter = Counter.builder("http_errors_total")
                 .description("Total number of HTTP errors")
+                .tag("status", "error")
+                .register(meterRegistry);
+        
+        this.totalRequestCounter = Counter.builder("http_requests_total")
+                .description("Total number of HTTP requests")
                 .register(meterRegistry);
     }
 
     @ExceptionHandler(RuntimeException.class)
     public ResponseEntity<Map<String, Object>> handleRuntimeException(RuntimeException e) {
         errorCounter.increment();
+        totalRequestCounter.increment();
         
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("error", "Internal Server Error");
@@ -41,6 +48,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(MethodArgumentNotValidException.class)
     public ResponseEntity<Map<String, Object>> handleValidationException(MethodArgumentNotValidException e) {
         errorCounter.increment();
+        totalRequestCounter.increment();
         
         Map<String, String> fieldErrors = e.getBindingResult().getFieldErrors().stream()
                 .collect(Collectors.toMap(
@@ -61,6 +69,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(IllegalArgumentException.class)
     public ResponseEntity<Map<String, Object>> handleIllegalArgumentException(IllegalArgumentException e) {
         errorCounter.increment();
+        totalRequestCounter.increment();
         
         Map<String, Object> errorResponse = new HashMap<>();
         errorResponse.put("error", "Bad Request");

@@ -2,35 +2,41 @@ version: '3.8'
 
 networks:
   canary-network:
+    # 'bridge' 드라이버를 사용하여 컨테이너 간 통신을 가능하게 합니다.
     driver: bridge
+    # IP 주소 관리(IPAM) 설정을 정의합니다.
     ipam:
       config:
+        # 이 네트워크의 서브넷을 정의하여 컨테이너에 할당될 IP 주소 범위를 지정합니다.
         - subnet: 172.20.0.0/16
 
 volumes:
-  prometheus-data:
-  grafana-data:
-  nginx-logs:
+  prometheus-data: # Prometheus가 메트릭 데이터를 저장하는 데 사용할 볼륨입니다.
+  grafana-data:    # Grafana가 대시보드 및 기타 설정을 저장하는 데 사용할 볼륨입니다.
+  nginx-logs:      # NGINX 로그를 저장하는 데 사용할 볼륨입니다.
+  loki-data:       # Loki가 로그 데이터를 저장하는 데 사용할 볼륨입니다.
+  app-logs:        # 애플리케이션 로그를 저장하는 데 사용할 볼륨입니다.
 
 services:
-  # NGINX Load Balancer
   nginx:
     image: nginx:alpine
     container_name: nginx-lb
     ports:
-      - "80:80"
-      - "443:443"
+      - "8000:80"
+      - "8443:443" # 호스트의 8443번 포트를 컨테이너의 443번 포트(HTTPS)로 연결합니다.
+    # 호스트의 파일/디렉토리를 컨테이너에 마운트합니다. ':ro'는 읽기 전용을 의미합니다.
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/conf.d/default.conf.template:/etc/nginx/conf.d/default.conf.template:ro
-      - ./nginx/start-nginx.sh:/tmp/start-nginx.sh
-      - ./nginx/reload-config.sh:/tmp/reload-config.sh
-      - nginx-logs:/var/log/nginx
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro # NGINX 주 설정 파일을 마운트합니다.
+      - ./nginx/conf.d/default.conf.template:/etc/nginx/conf.d/default.conf.template:ro # NGINX 서버 블록 템플릿을 마운트합니다.
+      - nginx-logs:/var/log/nginx # NGINX 로그를 저장할 볼륨을 마운트합니다.
+    # 컨테이너 내에서 사용할 환경 변수를 설정합니다.
     environment:
-      - LEGACY_WEIGHT=95
-      - REFACTORED_WEIGHT=5
-      - REFACTORED_PERCENTAGE=5
-    command: ["sh", "-c", "apk add --no-cache gettext && chmod +x /tmp/start-nginx.sh && /tmp/start-nginx.sh"]
+      - LEGACY_WEIGHT=95 # 레거시 애플리케이션으로 라우팅할 트래픽 가중치입니다.
+      - REFACTORED_WEIGHT=5 # 리팩토링된 애플리케이션으로 라우팅할 트래픽 가중치입니다.
+      - REFACTORED_PERCENTAGE=5 # 리팩토링된 애플리케이션으로 라우팅할 트래픽 비율입니다.
+    # 컨테이너가 시작될 때 실행할 명령어를 정의합니다.
+    command: ["sh", "-c", "echo 'Starting NGINX with traffic weights: Legacy: 95%, Refactored: 5%' && cp /etc/nginx/conf.d/default.conf.template /etc/nginx/conf.d/default.conf && nginx -t && exec nginx -g 'daemon off;'"]
+    # 이 서비스가 의존하는 다른 서비스를 지정합니다. NGINX는 애플리케이션들이 실행된 후에 시작됩니다.
     depends_on:
       - legacy-app-1
       - legacy-app-2
@@ -38,30 +44,39 @@ services:
       - refactored-app-2
     networks:
       canary-network:
+        # 이 컨테이너에 고정 IP 주소를 할당합니다.
         ipv4_address: 172.20.0.10
+    # 컨테이너가 비정상적으로 종료될 경우 재시작 정책을 설정합니다. 'unless-stopped'는 명시적으로 중지하지 않는 한 항상 재시작합니다.
     restart: unless-stopped
+    # 컨테이너의 상태를 확인하는 방법을 정의합니다.
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost/health"]
+      # 실행할 테스트 명령어입니다. 웹 서버가 응답하는지 확인합니다.
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:80/health"]
+      # 테스트 실행 간격입니다.
       interval: 30s
+      # 테스트 타임아웃 시간입니다.
       timeout: 10s
+      # 실패 시 재시도 횟수입니다.
       retries: 3
 
-  # Legacy Application Instances
   legacy-app-1:
     build:
       context: .
       dockerfile: Dockerfile
+      # 빌드 시 사용할 인자를 전달합니다.
       args:
         - APP_VERSION=legacy
     container_name: legacy-app-1
     ports:
       - "8080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=legacy
-      - SERVER_PORT=8080
-      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,metrics,prometheus
-      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
-      - SPRING_APPLICATION_NAME=studycicd-legacy
+      - SPRING_PROFILES_ACTIVE=legacy # 'legacy' 스프링 프로파일을 활성화합니다.
+      - SERVER_PORT=8080 # 애플리케이션이 8080 포트에서 실행되도록 설정합니다.
+      - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,metrics,prometheus # Actuator 엔드포인트를 노출합니다.
+      - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always # 건강 상태 확인 시 세부 정보를 항상 표시합니다.
+      - SPRING_APPLICATION_NAME=studycicd-legacy # 애플리케이션 이름을 설정합니다.
+    volumes:
+      - app-logs:/var/log/app
     networks:
       canary-network:
         ipv4_address: 172.20.0.11
@@ -71,6 +86,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      # 컨테이너가 시작된 후 healthcheck를 시작하기 전 대기 시간입니다.
       start_period: 60s
 
   legacy-app-2:
@@ -88,6 +104,8 @@ services:
       - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,metrics,prometheus
       - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
       - SPRING_APPLICATION_NAME=studycicd-legacy
+    volumes:
+      - app-logs:/var/log/app
     networks:
       canary-network:
         ipv4_address: 172.20.0.12
@@ -99,7 +117,6 @@ services:
       retries: 3
       start_period: 60s
 
-  # Refactored Application Instances
   refactored-app-1:
     build:
       context: .
@@ -110,11 +127,13 @@ services:
     ports:
       - "9080:8080"
     environment:
-      - SPRING_PROFILES_ACTIVE=refactored
+      - SPRING_PROFILES_ACTIVE=refactored # 'refactored' 스프링 프로파일을 활성화합니다.
       - SERVER_PORT=8080
       - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,metrics,prometheus
       - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
       - SPRING_APPLICATION_NAME=studycicd-refactored
+    volumes:
+      - app-logs:/var/log/app
     networks:
       canary-network:
         ipv4_address: 172.20.0.21
@@ -141,6 +160,8 @@ services:
       - MANAGEMENT_ENDPOINTS_WEB_EXPOSURE_INCLUDE=health,metrics,prometheus
       - MANAGEMENT_ENDPOINT_HEALTH_SHOW_DETAILS=always
       - SPRING_APPLICATION_NAME=studycicd-refactored
+    volumes:
+      - app-logs:/var/log/app
     networks:
       canary-network:
         ipv4_address: 172.20.0.22
@@ -152,7 +173,7 @@ services:
       retries: 3
       start_period: 60s
 
-  # Prometheus for Metrics Collection
+  # 메트릭 수집을 위한 Prometheus 서비스
   prometheus:
     image: prom/prometheus:latest
     container_name: prometheus
@@ -162,14 +183,15 @@ services:
       - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
       - ./monitoring/prometheus/rules:/etc/prometheus/rules:ro
       - prometheus-data:/prometheus
+    # Prometheus 실행 시 사용할 명령어 옵션입니다.
     command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.path=/prometheus'
-      - '--web.console.libraries=/etc/prometheus/console_libraries'
-      - '--web.console.templates=/etc/prometheus/consoles'
-      - '--storage.tsdb.retention.time=7d'
-      - '--web.enable-lifecycle'
-      - '--web.enable-admin-api'
+      - '--config.file=/etc/prometheus/prometheus.yml' # 설정 파일 경로를 지정합니다.
+      - '--storage.tsdb.path=/prometheus' # 시계열 데이터베이스 저장 경로를 지정합니다.
+      - '--web.console.libraries=/etc/prometheus/console_libraries' # 콘솔 라이브러리 경로를 지정합니다.
+      - '--web.console.templates=/etc/prometheus/consoles' # 콘솔 템플릿 경로를 지정합니다.
+      - '--storage.tsdb.retention.time=7d' # 데이터 보존 기간을 7일로 설정합니다.
+      - '--web.enable-lifecycle' # API를 통해 Prometheus를 재시작할 수 있도록 합니다.
+      - '--web.enable-admin-api' # 관리자 API를 활성화합니다.
     networks:
       canary-network:
         ipv4_address: 172.20.0.30
@@ -180,7 +202,7 @@ services:
       timeout: 10s
       retries: 3
 
-  # Grafana for Visualization
+  # 시각화를 위한 Grafana 서비스
   grafana:
     image: grafana/grafana:latest
     container_name: grafana
@@ -191,12 +213,13 @@ services:
       - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - ./monitoring/grafana/dashboards:/var/lib/grafana/dashboards:ro
     environment:
-      - GF_SECURITY_ADMIN_PASSWORD=admin
-      - GF_USERS_ALLOW_SIGN_UP=false
-      - GF_SECURITY_DISABLE_GRAVATAR=true
-      - GF_ANALYTICS_REPORTING_ENABLED=false
-      - GF_ANALYTICS_CHECK_FOR_UPDATES=false
-      - GF_INSTALL_PLUGINS=grafana-piechart-panel
+      - GF_SECURITY_ADMIN_PASSWORD=admin # 관리자 계정 비밀번호를 설정합니다.
+      - GF_USERS_ALLOW_SIGN_UP=false # 사용자 회원가입을 비활성화합니다.
+      - GF_SECURITY_DISABLE_GRAVATAR=true # Gravatar 프로필 이미지 사용을 비활성화합니다.
+      - GF_ANALYTICS_REPORTING_ENABLED=false # 분석 데이터 보고를 비활성화합니다.
+      - GF_ANALYTICS_CHECK_FOR_UPDATES=false # 업데이트 확인을 비활성화합니다.
+      - GF_INSTALL_PLUGINS=grafana-piechart-panel # 시작 시 파이 차트 패널 플러그인을 설치합니다.
+      - GF_LOG_LEVEL=info # 로그 레벨을 'info'로 설정합니다.
     networks:
       canary-network:
         ipv4_address: 172.20.0.31
@@ -207,7 +230,6 @@ services:
       timeout: 10s
       retries: 3
 
-  # Alertmanager for Alert Management
   alertmanager:
     image: prom/alertmanager:latest
     container_name: alertmanager
@@ -216,9 +238,9 @@ services:
     volumes:
       - ./monitoring/alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     command:
-      - '--config.file=/etc/alertmanager/alertmanager.yml'
-      - '--storage.path=/alertmanager'
-      - '--web.external-url=http://localhost:9093'
+      - '--config.file=/etc/alertmanager/alertmanager.yml' # 설정 파일 경로를 지정합니다.
+      - '--storage.path=/alertmanager' # 데이터 저장 경로를 지정합니다.
+      - '--web.external-url=http://localhost:9093' # 외부 접근 URL을 설정합니다.
     networks:
       canary-network:
         ipv4_address: 172.20.0.32
@@ -229,17 +251,88 @@ services:
       timeout: 10s
       retries: 3
 
-  # NGINX Exporter for Prometheus
+  # Prometheus를 위한 NGINX Exporter 서비스
   nginx-exporter:
     image: nginx/nginx-prometheus-exporter:latest
     container_name: nginx-exporter
     ports:
       - "9113:9113"
+    # NGINX Exporter 실행 시 사용할 명령어 옵션입니다.
     command:
-      - '-nginx.scrape-uri=http://nginx:80/nginx_status'
+      - '-nginx.scrape-uri=http://nginx:80/nginx_status' # NGINX 상태 정보를 가져올 URI를 지정합니다.
+    # NGINX 서비스에 의존합니다.
     depends_on:
       - nginx
     networks:
       canary-network:
         ipv4_address: 172.20.0.33
     restart: unless-stopped
+
+  # 로그 집계를 위한 Loki 서비스
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki-data:/loki
+      - ./monitoring/loki:/etc/loki:ro
+    command: -config.file=/etc/loki/loki-config.yml
+    networks:
+      canary-network:
+        ipv4_address: 172.20.0.40
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:3100/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  promtail:
+    image: grafana/promtail:latest
+    container_name: promtail
+    volumes:
+      - ./monitoring/promtail:/etc/promtail:ro # Promtail 설정 파일을 마운트합니다.
+      - nginx-logs:/var/log/nginx:ro # NGINX 로그 볼륨을 읽기 전용으로 마운트합니다.
+      - app-logs:/var/log/app:ro # 애플리케이션 로그 볼륨을 읽기 전용으로 마운트합니다.
+      - /var/lib/docker/containers:/var/lib/docker/containers:ro # Docker 컨테이너 로그를 수집하기 위해 호스트의 Docker 컨테이너 디렉토리를 마운트합니다.
+      - /var/run/docker.sock:/var/run/docker.sock # Docker 소켓을 마운트하여 컨테이너 메타데이터에 접근합니다.
+    command: -config.file=/etc/promtail/promtail-config.yml
+    depends_on:
+      - loki
+    networks:
+      canary-network:
+        ipv4_address: 172.20.0.41
+    restart: unless-stopped
+
+  # 실무용 웹훅 핸들러 (자동 롤백 처리)
+  webhook-handler:
+    build:
+      context: ./webhook-handler
+      dockerfile: Dockerfile
+    container_name: webhook-handler
+    ports:
+      - "8090:8090"
+    volumes:
+      - ./scripts:/scripts:ro
+      - nginx-logs:/var/log/nginx
+      - app-logs:/var/log/webhook
+      - /var/run/docker.sock:/var/run/docker.sock
+    environment:
+      - NODE_ENV=production
+      - PORT=8090
+      - SLACK_WEBHOOK_URL=${SLACK_WEBHOOK_URL:-}
+      - EMERGENCY_WEBHOOK_URL=${EMERGENCY_WEBHOOK_URL:-}
+    depends_on:
+      - nginx
+      - prometheus
+      - alertmanager
+    networks:
+      canary-network:
+        ipv4_address: 172.20.0.50
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://localhost:8090/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3

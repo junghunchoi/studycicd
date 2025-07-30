@@ -15,7 +15,6 @@ public class DeploymentStatusResponse {
     private Integer rollbackCount;
     private Integer maxRollbacks;
 
-    public DeploymentStatusResponse() {}
 
     public DeploymentStatusResponse(String deploymentId, String status, Integer currentStage, 
                                    Integer totalStages, Integer currentPercentage, 
@@ -31,86 +30,5 @@ public class DeploymentStatusResponse {
         this.rollbackCount = rollbackCount;
         this.maxRollbacks = maxRollbacks;
         this.lastUpdated = LocalDateTime.now();
-    }
-
-    // Getters and Setters
-    public String getDeploymentId() {
-        return deploymentId;
-    }
-
-    public void setDeploymentId(String deploymentId) {
-        this.deploymentId = deploymentId;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public Integer getCurrentStage() {
-        return currentStage;
-    }
-
-    public void setCurrentStage(Integer currentStage) {
-        this.currentStage = currentStage;
-    }
-
-    public Integer getTotalStages() {
-        return totalStages;
-    }
-
-    public void setTotalStages(Integer totalStages) {
-        this.totalStages = totalStages;
-    }
-
-    public Integer getCurrentPercentage() {
-        return currentPercentage;
-    }
-
-    public void setCurrentPercentage(Integer currentPercentage) {
-        this.currentPercentage = currentPercentage;
-    }
-
-    public List<Integer> getAvailableStages() {
-        return availableStages;
-    }
-
-    public void setAvailableStages(List<Integer> availableStages) {
-        this.availableStages = availableStages;
-    }
-
-    public LocalDateTime getLastUpdated() {
-        return lastUpdated;
-    }
-
-    public void setLastUpdated(LocalDateTime lastUpdated) {
-        this.lastUpdated = lastUpdated;
-    }
-
-    public String getMessage() {
-        return message;
-    }
-
-    public void setMessage(String message) {
-        this.message = message;
-    }
-
-    public Integer getRollbackCount() {
-        return rollbackCount;
-    }
-
-    public void setRollbackCount(Integer rollbackCount) {
-        this.rollbackCount = rollbackCount;
-    }
-
-    public Integer getMaxRollbacks() {
-        return maxRollbacks;
-    }
-
-    public void setMaxRollbacks(Integer maxRollbacks) {
-        this.maxRollbacks = maxRollbacks;
     }
 }

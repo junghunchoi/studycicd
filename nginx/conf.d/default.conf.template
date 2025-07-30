@@ -2,12 +2,12 @@
 
 upstream app_backend {
     # Legacy 애플리케이션 서버들
-    server legacy-app-1:8080 weight=${LEGACY_WEIGHT};
-    server legacy-app-2:8080 weight=${LEGACY_WEIGHT};
+    server legacy-app-1:8080 weight=95;
+    server legacy-app-2:8080 weight=95;
     
     # Refactored 애플리케이션 서버들  
-    server refactored-app-1:8080 weight=${REFACTORED_WEIGHT};
-    server refactored-app-2:8080 weight=${REFACTORED_WEIGHT};
+    server refactored-app-1:8080 weight=5;
+    server refactored-app-2:8080 weight=5;
     
     # 헬스체크 설정
     keepalive 32;
@@ -17,9 +17,6 @@ upstream app_backend {
 server {
     listen 80;
     server_name localhost;
-
-    # 메트릭 수집을 위한 헤더 추가
-    add_header X-Nginx-Cache $upstream_cache_status;
     
     # 메인 애플리케이션 라우팅
     location / {
@@ -28,6 +25,11 @@ server {
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
+        
+        # 카나리 배포 추적을 위한 헤더 추가
+        proxy_set_header X-Request-ID $request_id;
+        proxy_set_header X-Canary-Weight "5";
+        proxy_set_header X-Legacy-Weight "95";
         
         # 연결 재사용
         proxy_http_version 1.1;
@@ -43,6 +45,11 @@ server {
         proxy_buffer_size 4k;
         proxy_buffers 8 4k;
         proxy_busy_buffers_size 8k;
+        
+        # 응답 헤더에 업스트림 정보 추가 (디버깅용)
+        add_header X-Nginx-Cache $upstream_cache_status always;
+        add_header X-Upstream-Server $upstream_addr always;
+        add_header X-Response-Time $upstream_response_time always;
     }
     
     # 헬스체크 엔드포인트 (전체 시스템)
@@ -65,12 +72,68 @@ server {
     # 트래픽 가중치 정보 조회 API
     location /api/traffic/status {
         access_log off;
-        return 200 '{"legacy_weight": ${LEGACY_WEIGHT}, "refactored_weight": ${REFACTORED_WEIGHT}}';
+        return 200 '{"legacy_weight": 95, "refactored_weight": 5}';
         add_header Content-Type application/json;
         allow 172.16.0.0/12;
         allow 10.0.0.0/8;
         allow 127.0.0.1;
         deny all;
+    }
+    
+    # 실무용 웹훅 엔드포인트들
+    location /webhook/auto-rollback {
+        access_log /var/log/nginx/webhook.log;
+        
+        # Basic Auth 인증
+        auth_basic "Rollback Webhook";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+        
+        # POST 메서드만 허용
+        limit_except POST {
+            deny all;
+        }
+        
+        # 웹훅 스크립트 실행
+        proxy_pass http://webhook-handler:8090/rollback;
+        proxy_method POST;
+        proxy_pass_request_body on;
+        proxy_set_header Content-Type application/json;
+        proxy_set_header X-Webhook-Source "alertmanager";
+        
+        # 타임아웃 설정 (롤백은 빠르게)
+        proxy_connect_timeout 5s;
+        proxy_send_timeout 30s;
+        proxy_read_timeout 30s;
+    }
+    
+    location /webhook/critical {
+        access_log /var/log/nginx/webhook.log;
+        auth_basic "Critical Webhook";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+        
+        limit_except POST {
+            deny all;
+        }
+        
+        proxy_pass http://webhook-handler:8090/critical;
+        proxy_method POST;
+        proxy_pass_request_body on;
+        proxy_set_header Content-Type application/json;
+    }
+    
+    location /webhook/general {
+        access_log /var/log/nginx/webhook.log;
+        auth_basic "General Webhook";
+        auth_basic_user_file /etc/nginx/.htpasswd;
+        
+        limit_except POST {
+            deny all;
+        }
+        
+        proxy_pass http://webhook-handler:8090/general;
+        proxy_method POST;
+        proxy_pass_request_body on;
+        proxy_set_header Content-Type application/json;
     }
     
     # 에러 페이지

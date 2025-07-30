@@ -30,21 +30,23 @@ groups:
           summary: "High response time detected"
           description: "95th percentile response time is {{ $value }}s which is above 1.5s threshold"
 
-      # 리팩토링 버전 특화 알람
-      - alert: RefactoredVersionHighErrorRate
+      # 자동 롤백 트리거 알람 (실무에서 가장 중요)
+      - alert: CanaryAutoRollback
         expr: |
           (
-            rate(spring_http_server_requests_seconds_count{version="refactored",status=~"5.."}[2m]) / 
-            rate(spring_http_server_requests_seconds_count{version="refactored"}[2m])
-          ) * 100 > 2
-        for: 30s
+            rate(http_errors_total[2m]) / 
+            rate(http_requests_total[2m])
+          ) * 100 > 5
+        for: 2m
         labels:
           severity: critical
           service: canary-deployment
-          version: refactored
+          action: auto-rollback
+          webhook: "true"
         annotations:
-          summary: "Refactored version high error rate"
-          description: "Refactored version error rate is {{ $value }}% - immediate rollback required"
+          summary: "Auto-rollback triggered for canary deployment"
+          description: "Error rate {{ printf \"%.2f\" $value }}% exceeds 5% threshold for 2+ minutes"
+          rollback_reason: "High error rate"
 
       # 애플리케이션 다운 알람
       - alert: ApplicationDown

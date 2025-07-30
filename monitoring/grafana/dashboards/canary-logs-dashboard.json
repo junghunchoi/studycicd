@@ -1,0 +1,270 @@
+{
+  "dashboard": {
+    "id": null,
+    "title": "Canary Deployment Logs",
+    "tags": ["canary", "logs", "deployment"],
+    "style": "dark",
+    "timezone": "browser",
+    "panels": [
+      {
+        "id": 1,
+        "title": "NGINX Request Flow",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"nginx\", log_type=\"canary\"}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 0
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "showCommonLabels": false,
+          "wrapLogMessage": false,
+          "prettifyLogMessage": false,
+          "enableLogDetails": true,
+          "sortOrder": "Descending"
+        },
+        "fieldConfig": {
+          "defaults": {
+            "custom": {}
+          }
+        }
+      },
+      {
+        "id": 2,
+        "title": "Legacy App Requests",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"spring-boot\", service=\"legacy-app\"}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 0,
+          "y": 8
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "showCommonLabels": false,
+          "wrapLogMessage": false,
+          "prettifyLogMessage": false,
+          "enableLogDetails": true,
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 3,
+        "title": "Refactored App Requests",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"spring-boot\", service=\"refactored-app\"}",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 12,
+          "x": 12,
+          "y": 8
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "showCommonLabels": false,
+          "wrapLogMessage": false,
+          "prettifyLogMessage": false,
+          "enableLogDetails": true,
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 4,
+        "title": "Request Distribution by Upstream",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "count by (upstream_addr) (count_over_time({job=\"nginx\", log_type=\"routing\"}[5m]))",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 12,
+          "x": 0,
+          "y": 16
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                }
+              ]
+            }
+          }
+        },
+        "options": {
+          "orientation": "auto",
+          "reduceOptions": {
+            "values": false,
+            "calcs": ["lastNotNull"],
+            "fields": ""
+          },
+          "textMode": "auto"
+        }
+      },
+      {
+        "id": 5,
+        "title": "Response Times by Version",
+        "type": "stat",
+        "targets": [
+          {
+            "expr": "avg by (upstream_addr) (upstream_response_time)",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 4,
+          "w": 12,
+          "x": 12,
+          "y": 16
+        },
+        "fieldConfig": {
+          "defaults": {
+            "color": {
+              "mode": "palette-classic"
+            },
+            "unit": "s",
+            "mappings": [],
+            "thresholds": {
+              "steps": [
+                {
+                  "color": "green",
+                  "value": null
+                },
+                {
+                  "color": "yellow",
+                  "value": 0.1
+                },
+                {
+                  "color": "red",
+                  "value": 0.5
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "id": 6,
+        "title": "Error Logs",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=\"nginx\", log_type=\"error\"} |= \"error\"",
+            "refId": "A"
+          },
+          {
+            "expr": "{job=\"spring-boot\"} |= \"ERROR\"",
+            "refId": "B"
+          }
+        ],
+        "gridPos": {
+          "h": 6,
+          "w": 24,
+          "x": 0,
+          "y": 20
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "showCommonLabels": false,
+          "wrapLogMessage": false,
+          "prettifyLogMessage": false,
+          "enableLogDetails": true,
+          "sortOrder": "Descending"
+        }
+      },
+      {
+        "id": 7,
+        "title": "Request Tracing by Request ID",
+        "type": "logs",
+        "targets": [
+          {
+            "expr": "{job=~\"nginx|spring-boot\"} |~ \"${request_id}\"",
+            "refId": "A"
+          }
+        ],
+        "gridPos": {
+          "h": 8,
+          "w": 24,
+          "x": 0,
+          "y": 26
+        },
+        "options": {
+          "showTime": true,
+          "showLabels": true,
+          "showCommonLabels": false,
+          "wrapLogMessage": false,
+          "prettifyLogMessage": false,
+          "enableLogDetails": true,
+          "sortOrder": "Ascending"
+        }
+      }
+    ],
+    "time": {
+      "from": "now-30m",
+      "to": "now"
+    },
+    "timepicker": {},
+    "templating": {
+      "list": [
+        {
+          "allValue": null,
+          "current": {
+            "text": "All",
+            "value": "$__all"
+          },
+          "datasource": {
+            "type": "loki",
+            "uid": "loki"
+          },
+          "definition": "label_values(request_id)",
+          "hide": 0,
+          "includeAll": true,
+          "multi": false,
+          "name": "request_id",
+          "options": [],
+          "query": "label_values(request_id)",
+          "refresh": 1,
+          "regex": "",
+          "skipUrlSync": false,
+          "sort": 0,
+          "type": "query"
+        }
+      ]
+    },
+    "refresh": "5s",
+    "schemaVersion": 27,
+    "version": 1,
+    "links": []
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "canary-webhook-handler",
+  "version": "1.0.0",
+  "description": "Production-ready webhook handler for canary deployment auto-rollback",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "NODE_ENV=development nodemon server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "keywords": [
+    "webhook",
+    "canary",
+    "deployment",
+    "rollback",
+    "prometheus",
+    "alertmanager"
+  ],
+  "author": "StudyCICD Team",
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

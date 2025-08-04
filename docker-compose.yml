@@ -28,6 +28,7 @@ services:
     volumes:
       - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro # NGINX 주 설정 파일을 마운트합니다.
       - ./nginx/conf.d/default.conf.template:/etc/nginx/conf.d/default.conf.template:ro # NGINX 서버 블록 템플릿을 마운트합니다.
+      - ./nginx/reload-config.sh:/reload-config.sh:ro # 동적 설정 변경 스크립트를 마운트합니다.
       - nginx-logs:/var/log/nginx # NGINX 로그를 저장할 볼륨을 마운트합니다.
     # 컨테이너 내에서 사용할 환경 변수를 설정합니다.
     environment:

@@ -15,7 +15,6 @@ public class DeploymentStatusResponse {
     private Integer rollbackCount;
     private Integer maxRollbacks;
 
-
     public DeploymentStatusResponse(String deploymentId, String status, Integer currentStage, 
                                    Integer totalStages, Integer currentPercentage, 
                                    List<Integer> availableStages, String message,
@@ -30,5 +29,46 @@ public class DeploymentStatusResponse {
         this.rollbackCount = rollbackCount;
         this.maxRollbacks = maxRollbacks;
         this.lastUpdated = LocalDateTime.now();
+    }
+
+    // Getter methods
+    public String getDeploymentId() {
+        return deploymentId;
+    }
+
+    public String getStatus() {
+        return status;
+    }
+
+    public Integer getCurrentStage() {
+        return currentStage;
+    }
+
+    public Integer getTotalStages() {
+        return totalStages;
+    }
+
+    public Integer getCurrentPercentage() {
+        return currentPercentage;
+    }
+
+    public List<Integer> getAvailableStages() {
+        return availableStages;
+    }
+
+    public LocalDateTime getLastUpdated() {
+        return lastUpdated;
+    }
+
+    public String getMessage() {
+        return message;
+    }
+
+    public Integer getRollbackCount() {
+        return rollbackCount;
+    }
+
+    public Integer getMaxRollbacks() {
+        return maxRollbacks;
     }
 }

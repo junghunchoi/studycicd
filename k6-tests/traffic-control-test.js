@@ -23,8 +23,8 @@ export const options = {
   },
 };
 
-const BASE_URL = __ENV.BASE_URL || 'http://localhost';
-const CONTROLLER_URL = __ENV.CONTROLLER_URL || 'http://localhost:8080';
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
+const CONTROLLER_URL = __ENV.CONTROLLER_URL || 'http://localhost:8000';
 
 // 트래픽 가중치 조정 시나리오
 const trafficScenarios = new SharedArray('traffic scenarios', function () {

@@ -3,6 +3,70 @@
 # 실무용 웹훅 기반 자동 롤백 스크립트
 # Alertmanager에서 호출되는 자동 롤백 처리
 
+#🎯 주요 기능
+#
+#  1. Alertmanager 연동 자동 롤백
+#
+#  # Alertmanager가 SLO 위반 감지시 → 웹훅 호출 → 이 스크립트 실행
+#
+#  2. 안전한 동시성 제어
+#
+#  # 잠금 파일로 동시 롤백 방지
+#  LOCK_FILE="/tmp/rollback.lock"
+#
+#  3. 웹훅 페이로드 파싱
+#
+#  # Alertmanager에서 보낸 알람 정보 추출
+#  - ALERT_NAME (예: "CanaryAutoRollback")
+#  - ERROR_RATE (예: "7.5%")
+#  - SERVICE (예: "canary-deployment")
+#  - ROLLBACK_REASON (예: "High error rate")
+#
+#  4. 즉시 트래픽 롤백
+#
+#  # NGINX 설정을 Legacy 100%, Refactored 0%로 변경
+#  docker exec nginx-lb /reload-config.sh 100 0 0
+#
+#  🔄 실제 작동 시나리오
+#
+#  정상 상황
+#
+#  자동 배포 진행 중... (5% → 10% → 25%)
+#  📊 SLO 체크: ✅ 에러율 1.2%, 응답시간 0.8초
+#  → 다음 단계 진행
+#
+#  장애 상황
+#
+#  📊 SLO 체크: ❌ 에러율 7.5% (2분 지속)
+#  🚨 Alertmanager: "CanaryAutoRollback" 알람 발생
+#  📞 Webhook 호출: POST /rollback
+#  🔧 webhook-rollback.sh 실행:
+#     1️⃣ 잠금 획득
+#     2️⃣ 페이로드 파싱 (에러율: 7.5%)
+#     3️⃣ 트래픽 100% 롤백 (30초 내)
+#     4️⃣ Slack 알림 전송
+#     5️⃣ 로그 기록 & 잠금 해제
+#
+#  📋 스크립트의 고급 기능들
+#
+#  🔒 안전장치
+#
+#  - 동시 실행 방지: PID 기반 잠금
+#  - 타임아웃 처리: 30초 내 완료 보장
+#  - 상태 검증: 이미 롤백된 상태인지 확인
+#
+#  📊 모니터링 & 알림
+#
+#  - 상세 로깅: 모든 롤백 과정 기록
+#  - Slack 통합: 성공/실패 알림
+#  - 메트릭 수집: 롤백 소요 시간 측정
+#
+#  🛠️ 실전 고려사항
+#
+#  - Graceful Shutdown: 진행 중인 요청 완료 대기
+#  - Docker 통합: 컨테이너 환경에서 안전한 실행
+#  - 에러 핸들링: 실패 시 긴급 알림
+
 set -euo pipefail
 
 # 설정

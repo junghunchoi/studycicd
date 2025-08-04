@@ -15,7 +15,7 @@ export let options = {
       executor: 'constant-arrival-rate',
       rate: 10,        // 초당 10건
       timeUnit: '1s',  // 1초 단위
-      duration: '2m',  // 2분간 실행
+      duration: '10m',  // 2분간 실행
       preAllocatedVUs: 5,  // 미리 할당할 VU 수
       maxVUs: 20,      // 최대 VU 수
     },
@@ -30,8 +30,8 @@ export let options = {
   },
 };
 
-// 환경변수에서 Base URL 가져오기
-const BASE_URL = __ENV.BASE_URL || 'http://localhost';
+// 환경변수에서 Base URL 가져오기 (Docker Compose NGINX 포트 8000)
+const BASE_URL = __ENV.BASE_URL || 'http://localhost:8000';
 
 export default function() {
   // /work 엔드포인트에 GET 요청

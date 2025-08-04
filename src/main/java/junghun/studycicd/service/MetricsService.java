@@ -27,9 +27,16 @@ public class MetricsService {
     private final WebClient webClient;
 
     public MetricsService() {
-        this.webClient = WebClient.builder()
-                .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(1024 * 1024))
-                .build();
+        WebClient client;
+        try {
+            client = WebClient.builder()
+                    .codecs(configurer -> configurer.defaultCodecs().maxInMemorySize(1024 * 1024))
+                    .build();
+        } catch (Exception e) {
+            logger.warn("Failed to initialize WebClient, creating default client", e);
+            client = WebClient.create();
+        }
+        this.webClient = client;
     }
 
     public boolean isDeploymentSafe() {

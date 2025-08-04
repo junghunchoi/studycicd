@@ -47,13 +47,6 @@ receivers:
       basic_auth:
         username: 'rollback-system'
         password: 'auto-rollback-secret-key-2024'
-    title: 'AUTOMATIC ROLLBACK TRIGGERED'
-    text: |
-      🚨 자동 롤백 실행됨
-      알람: {{ .GroupLabels.alertname }}
-      서비스: {{ .GroupLabels.service }}
-      사유: {{ range .Alerts }}{{ .Annotations.rollback_reason }}{{ end }}
-      시간: {{ .CommonAnnotations.timestamp }}
 
 # 카나리 크리티컬 알람 (팀 통보용)
 - name: 'canary-critical'

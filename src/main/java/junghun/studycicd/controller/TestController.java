@@ -3,6 +3,8 @@ package junghun.studycicd.controller;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
+import junghun.studycicd.simulation.ErrorSimulationService;
+import junghun.studycicd.simulation.SimulatedErrorException;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -19,15 +21,17 @@ public class TestController {
     private final Counter requestCounter;
     private final Timer responseTimer;
     private final Random random = new Random();
-    
+    private final ErrorSimulationService errorSimulationService;
+
     @Value("${info.app.version.type:default}")
     private String versionType;
 
-    public TestController(MeterRegistry meterRegistry) {
+    public TestController(MeterRegistry meterRegistry, ErrorSimulationService errorSimulationService) {
+        this.errorSimulationService = errorSimulationService;
         this.requestCounter = Counter.builder("http_requests_total")
                 .description("Total number of HTTP requests")
                 .register(meterRegistry);
-        
+
         this.responseTimer = Timer.builder("http_request_duration_seconds")
                 .description("HTTP request duration")
                 .register(meterRegistry);
@@ -71,21 +75,18 @@ public class TestController {
     }
 
     @GetMapping("/error-simulation")
-    public ResponseEntity<Map<String, Object>> errorSimulation() {
+    public ResponseEntity<Map<String, Object>> errorSimulation() throws SimulatedErrorException {
         requestCounter.increment();
-        
-        // 리팩토링 버전에서는 의도적으로 더 높은 에러율 시뮬레이션
-        int errorRate = "refactored".equals(versionType) ? 10 : 5; // 10% vs 5%
-        
-        if (random.nextInt(100) < errorRate) {
-            throw new RuntimeException("Simulated error for testing");
-        }
-        
+
+        // 새로운 에러 시뮬레이션 서비스 사용
+        errorSimulationService.simulateApiError();
+
         Map<String, Object> response = new HashMap<>();
         response.put("status", "success");
         response.put("version", versionType);
         response.put("message", "No error occurred");
-        
+        response.put("timestamp", LocalDateTime.now());
+
         return ResponseEntity.ok(response);
     }
 

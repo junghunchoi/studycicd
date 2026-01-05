@@ -102,8 +102,19 @@ This is a comprehensive Spring Boot 3.5.4 application using Java 21 and Gradle, 
 ### Testing Endpoints
 - `GET /api/hello` - Basic health check with version info
 - `GET /api/test` - Test endpoint with metrics collection
-- `GET /api/error-simulation` - Intentional error generation for testing
+- `GET /api/error-simulation` - Intentional error generation for testing (legacy)
 - `GET /api/version` - Application version information
+
+### Error Simulation Endpoints
+- `GET /api/error-simulation/random` - Generate random simulated error
+- `GET /api/error-simulation/type/{errorType}` - Generate specific error type
+- `GET /api/error-simulation/config` - Get current configuration
+- `POST /api/error-simulation/periodic/toggle` - Enable/disable periodic errors
+- `POST /api/error-simulation/api/toggle` - Enable/disable API errors
+- `POST /api/error-simulation/rate` - Set error rates
+- `GET /api/error-simulation/statistics` - Get error statistics
+- `POST /api/error-simulation/statistics/reset` - Reset statistics
+- `GET /api/error-simulation/types` - List all available error types
 
 ## Configuration Properties
 
